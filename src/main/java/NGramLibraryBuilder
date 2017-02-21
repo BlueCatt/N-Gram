@@ -1,0 +1,82 @@
+import java.io.IOException;
+import java.util.StringTokenizer;
+
+import org.apache.commons.io.output.StringBuilderWriter;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+public class NGramLibraryBuilder {
+    public static class NGramMapper extends
+            Mapper<LongWritable, Text, Text, IntWritable> {
+
+        int n;
+        @Override
+        public void setup(Context context) {
+            //This method only runs once, when Mapper class initializes.
+            //How to get the number of grams from command line?
+            Configuration conf = context.getConfiguration();
+            n = conf.getInt("noGram", 5);
+        }
+
+        public void map(LongWritable key, Text value, Context context)
+                throws IOException, InterruptedException {
+
+            /*
+                input: read sentence
+                I love big data n = 3
+                2-gram: I love = 1, love big = 1; big data = 1;
+                3-gram: I love big = 1; love big data = 1;
+             */
+
+            //How to remove useless elements?
+            String line = value.toString( ).trim().toLowerCase().replaceAll("[^a-z]", "");
+            //How to seperate word by space?
+            String[] words = line.split("\\s+");
+
+            if(words.length < 2) {
+                return;
+            }
+
+            //How to build n-gram based on array of words?
+            StringBuilder sb;
+            for (int i = 0; i < words.length; i++) {
+                sb = new StringBuilder();
+                sb.append(words[i]);
+                for (int j = 1; i + j < words.length && j < n; j++) {
+                    sb.append("");
+                    sb.append(words[i + j]);
+                    context.write(new Text(sb.toString()),new IntWritable(1));
+                }
+
+            }
+
+
+        }
+    }
+
+    public static class NGramReducer extends
+            Reducer<Text, IntWritable, Text, IntWritable> {
+
+        public void reduce(Text key, Iterable<IntWritable> values,
+                           Context context) throws IOException, InterruptedException {
+
+            //How to sum up the total count of each n-gram?
+            int sum = 0;
+            for (IntWritable value : values) {
+                sum += value.get();
+            }
+
+            context.write(key, new IntWritable(sum));
+
+        }
+    }
+    
+}
